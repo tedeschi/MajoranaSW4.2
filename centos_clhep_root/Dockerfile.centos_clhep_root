@@ -1,0 +1,87 @@
+#
+#     Dockerfile to build unix system with CentOS 7, CLHEP, CERN root
+#     David Tedeschi, UofSC
+#     Robert Varner, ORNL
+#-------------------------------------------------------------------------------
+# use "Centos 7" as base
+# use latest gcc
+# includes python 2.7 - add python3.6
+#
+FROM centos:7
+LABEL maintainer "tedeschi@sc.edu"
+#
+# use package manager "yum" to install key system resources
+# many already included in distribution (varies by base)
+#
+RUN yum -y update && yum -y install epel-release && yum -y install \
+  make gcc gcc-c++ binutils gcc-gfortran gdb cmake cmake3 csh \
+  texlive texlive-natbib\
+  tree git vim-enhanced nano emacs time rsync wget gsl-devel svn\
+  libcurl-devel xorg-x11-utils xterm \
+  python-devel python-numpy-devel python2-pip \
+  python36-devel python36-pip python36-tkinter \
+  redhat-lsb-core \
+  libX11-devel libXpm-devel libXft-devel libXext-devel libXmu-devel\
+  libssl-devel pcre-devel mesa-libGL-devel mesa-libGLU-devel glew-devel \
+  ftgl-devel mysql-devel cfitsio-devel avahi-compat-libdns_sd-devel  \
+  fftw-devel libcfitsio-devel graphviz-devel xerces-c-devel\
+  libldap-devel openssl-devel libxml2-devel krb5-devel  qt-devel  \
+  && yum autoremove -y
+#
+#de-fang image by removing suid bit
+RUN find / -xdev -perm /6000 -type f -exec chmod a-s {} \; || true
+#
+# add modules for both python2 and python3
+#
+RUN pip install --upgrade pip
+RUN pip install numpy scipy matplotlib
+RUN pip3 install numpy scipy matplotlib h5py
+#
+# locally build-in version of CLHEP lib
+#
+ENV CLHEP_VERSION 2.4.1.0
+ENV CLHEP_BASE_DIR /mjsw/CLHEP/$CLHEP_VERSION/install
+ENV LD_LIBRARY_PATH $CLHEP_BASE_DIR/lib:$LD_LIBRARY_PATH
+RUN mkdir -p /mjsw/CLHEP/$CLHEP_VERSION/install /mjsw/CLHEP/$CLHEP_VERSION/build
+WORKDIR /mjsw/CLHEP/$CLHEP_VERSION/build
+RUN wget -P /mjsw/CLHEP http://proj-clhep.web.cern.ch/proj-clhep/DISTRIBUTION/tarFiles/clhep-$CLHEP_VERSION.tgz \
+  && tar zxvf /mjsw/CLHEP/clhep-$CLHEP_VERSION.tgz -C /mjsw/CLHEP/ \
+  && cmake3 -DCMAKE_INSTALL_PREFIX=../install ../CLHEP \
+  && cmake3 --build . --config RelWithDebInfo \
+  && cmake3 --build . --target install \
+  && rm -rf * \
+  && cd /mjsw/CLHEP/$CLHEP_VERSION \
+  && rmdir build \
+  && rm /mjsw/CLHEP/clhep-$CLHEP_VERSION.tgz
+#
+#
+# set dirs and vars for CERN root
+#
+RUN mkdir -p /mjsw/ROOT /mjsw/ROOT/build /mjsw/ROOT/install
+WORKDIR /mjsw/ROOT
+ENV root_file v6-12-06.tar.gz
+ENV root_dir root-6-12-06
+ENV root_install_dir /mjsw/ROOT/install
+#
+# get version of CERN root
+#
+RUN wget --quiet https://github.com/root-project/root/archive/${root_file} \
+    && tar -xf ${root_file} \
+    && rm -f ${root_file}
+#
+#  build root
+#
+RUN cd build \
+    && cmake3  \
+      -DCMAKE_CXX_FLAGS="-std=c++11" -Dbuiltin_xrootd=ON\
+      -DCMAKE_INSTALL_PREFIX:PATH=${root_install_dir} \
+      ../${root_dir} \
+    && make -j4\
+    && make install
+#
+# clean up
+#
+RUN rm -rf /mjsw/ROOT/build
+#
+WORKDIR /
+ENTRYPOINT ["/bin/bash"]

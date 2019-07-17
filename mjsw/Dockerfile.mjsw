@@ -1,0 +1,134 @@
+#
+#     Dockerfile to build MJD software on top
+#     Linux-gcc,root,clhep,geant4
+#
+#     RLVarner ORNL from work by
+#     David Tedeschi, Univ. of South Carolina, 2018
+#-------------------------------------------------------------------------------
+FROM dave:centos_geant4
+LABEL maintainer "tedeschi@sc.edu"
+#
+# set environment variables
+#
+ENV CLHEP_VERSION 2.4.1.0
+ENV CLHEP_BASE_DIR /mjsw/CLHEP/$CLHEP_VERSION/install
+ENV LD_LIBRARY_PATH $CLHEP_BASE_DIR/lib:$LD_LIBRARY_PATH
+ENV CLHEP_INCLUDE_DIR ${CLHEP_BASE_DIR}/include
+ENV CLHEP_LIB_DIR ${CLHEP_BASE_DIR}/lib
+#
+ENV ROOTSYS /mjsw/ROOT/install
+ENV PATH $ROOTSYS/bin:$PATH
+ENV LD_LIBRARY_PATH $ROOTSYS/lib:$ROOTSYS/bindings/pyroot:$LD_LIBRARY_PATH
+ENV PYTHONDIR $ROOTSYS
+ENV PYTHONPATH $ROOTSYS/lib
+#
+ENV MJSWVERSION "mjsw201807Prod"
+ENV MJSWDIR /mjsw
+ENV MJSWDEV /mjsw
+ENV ORDIR /mjsw/OrcaRoot
+ENV MGDODIR /mjsw/MGDO
+ENV TAMDIR ${MGDODIR}/tam
+ENV GATDIR /mjsw/GAT
+ENV LD_LIBRARY_PATH ${ORDIR}/lib:${MGDODIR}/lib:${GATDIR}/lib:${TAMDIR}/lib:${LD_LIBRARY_PATH}
+ENV PATH /mjsw/mjrdb_Utils:${ORDIR}/Applications:/mjsw/MJOR/:${MGDODIR}/bin:${GATDIR}/Apps:${GATDIR}/Scripts:${PATH}
+ENV ROOT_INCLUDE_PATH ${CLHEP_INCLUDE_DIR}:$MGDODIR/Base:$MGDODIR/Gerda:$MGDODIR/GerdaTransforms:$MGDODIR/Majorana:$MGDODIR/MJDB:$MGDODIR/Root:$MGDODIR/Tabree:$MGDODIR/Tools:$MGDODIR/Transforms:$TAMDIR:$TAMDIR/inc:$GATDIR/BaseClasses:$GATDIR/MGTEventProcessing:$GATDIR/MGOutputMCRunProcessing:$GATDIR/SiggenWrapper
+ENV TERM xterm
+#
+# bake in these paths for MJDDATADIR, PYTHONDIR - good only on NERSC systems
+# user will need to re-define for local machines when necessary
+#
+ENV MJDDATADIR /global/project/projectdirs/majorana/data/mjd
+ENV PYTHONPATH $PYTHONPATH:${GATDIR}/Scripts:/global/homes/m/mjd/production/Utils
+ENV PATH /global/homes/m/mjd/production/Utils:${PATH}
+#
+# update mjd software from git repo to local directory before build
+# see /Users/tedeschi/Documents/Majorana/docker/mjdsw/update_mjdsw.sh
+# copy versions of the mjd software from local directory into container
+# this way the git password stays out of this file and the container
+#
+# OrcaRoot
+#
+RUN mkdir -p /mjsw/OrcaRoot
+COPY OrcaRoot /mjsw/OrcaRoot/.
+WORKDIR /mjsw/OrcaRoot
+RUN ./configure \
+  && make
+#
+# MGDO
+#
+RUN mkdir -p /mjsw/MGDO
+COPY MGDO /mjsw/MGDO/.
+WORKDIR $MGDODIR
+RUN ./configure  --prefix=`pwd` --enable-majorana-all CXXFLAGS=-std=c++11 \
+  && make
+#
+# MJOR
+#
+RUN mkdir -p /mjsw/MJOR
+COPY MJOR /mjsw/MJOR/.
+WORKDIR /mjsw/MJOR
+RUN make
+#
+# add siggen
+# this is radware
+#
+RUN mkdir -p /mjsw/mjd_siggen
+COPY mjd_siggen /mjsw/mjd_siggen/.
+ENV SIGGENDIR /mjsw/mjd_siggen
+#
+# GAT
+#
+RUN mkdir -p /mjsw/GAT
+COPY GAT /mjsw/GAT/.
+WORKDIR $GATDIR
+RUN make clean \
+  && make
+#
+# MaGe
+# w/ Geant4 10.4.3 dependencies
+#
+ENV G4DATA /mjsw/GEANT/install/share/Geant4-10.4.3/data
+ENV G4LEVELGAMMADATA  ${G4DATA}/PhotonEvaporation5.2
+ENV G4RADIOACTIVEDATA ${G4DATA}/RadioactiveDecay5.2
+ENV G4PIIDATA         ${G4DATA}/G4PII1.3
+ENV G4SAIDXSDATA      ${G4DATA}/G4SAIDDATA1.1
+ENV G4ABLADATA        ${G4DATA}/G4ABLA3.1
+ENV G4REALSURFACEDATA ${G4DATA}/RealSurface2.1.1
+ENV G4NEUTRONHPDATA   ${G4DATA}/G4NDL4.5
+ENV G4NEUTRONXSDATA   ${G4DATA}/G4NEUTRONXS1.4
+ENV G4ENSDFSTATEDATA  ${G4DATA}/G4ENSDFSTATE2.2
+ENV G4LEDATA          ${G4DATA}/G4EMLOW7.3
+#
+ENV G4TENDLDATA       ${G4DATA}/G4TENDL1.3.2
+ENV G4PROTONHPDATA    ${G4TENDLDATA}/Proton
+ENV G4DEUTERONHPDATA  ${G4TENDLDATA}/Deuteron
+ENV G4TRITONHPDATA    ${G4TENDLDATA}/Triton
+ENV G4HE3HPDATA       ${G4TENDLDATA}/He3
+ENV G4ALPHAHPDATA     ${G4TENDLDATA}/Alpha
+ENV G4H3HPDATA        ${G4TENDLDATA}/He3
+#
+ENV G4INSTALL /mjsw/GEANT/install/share/Geant4-10.4.3/geant4make
+ENV G4SYSTEM Linux-g++
+ENV G4INCLUDE /mjsw/GEANT/install/include/Geant4
+ENV G4LIB /mjsw/GEANT/install/lib64/Geant4-10.4.3/Linux-g++/Geant4-10.4.3
+ENV G4LIB_BUILD_SHARED 1
+ENV G4LIB_USE_GDML 1
+ENV G4LIB_BUILD_GDML 1
+ENV G4WORKDIR /mjsw/MaGe
+ENV LD_LIBRARY_PATH /mjsw/GEANT/install/lib64/Geant4-10.4.3/Linux-g++/Geant4-10.4.3/Linux-g++:${LD_LIBRARY_PATH}
+#
+# add MaGe
+#
+ENV MAGEDIR /mjsw/MaGe
+ENV LD_LIBRARY_PATH ${MAGEDIR}/analysis:${LD_LIBRARY_PATH}
+ENV ROOT_INCLUDE_PATH ${MAGEDIR}/io/io:${MAGEDIR}/mjio:${MAGEDIR}/mjio/mjio:${ROOT_INCLUDE_PATH}
+RUN mkdir -p $MAGEDIR
+COPY MaGe $MAGEDIR/.
+COPY MJD.json $MAGEDIR/.
+WORKDIR $MAGEDIR
+RUN ./configure --prefix=`pwd` CXXFLAGS=-std=c++11 \
+  && make
+#
+#
+#WORKDIR /mjsw
+ENTRYPOINT ["/bin/bash"]
