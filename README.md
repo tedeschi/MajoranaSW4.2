@@ -6,13 +6,17 @@ Your overall directory structure should look like this before running the build 
 
 
 
-# cd MajoranaSW4.2
-# tree -L 2
+\# cd MajoranaSW4.2
+\# tree -L 2
 .
 ├── build_mjd4_all.log
+
 ├── build_mjd4_all.sh
+
 ├── build_mjd4_mjsw.sh
+
 ├── centos_clhep_root
+
 │   └── Dockerfile.centos_clhep_root
 ├── centos_clhep_root.log
 ├── centos_geant4.log
