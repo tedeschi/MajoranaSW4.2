@@ -1,4 +1,4 @@
-This set of dockerfiles is run my the script build_mjd4_all.sh.
+This set of dockerfiles is run by the script build_mjd4_all.sh.
 
 
 You need to download the geant files and mjd files from their respective repositories.
